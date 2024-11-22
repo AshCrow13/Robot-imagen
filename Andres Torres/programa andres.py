@@ -79,10 +79,6 @@ class ProcesamientoImagenWebcam:
         self.lab = tk.Label(self.root, text="Laboratorio CIM")
         self.lab.place(x=1700, y=970)
 
-        # Logo Universidad
-        self.logo = tk.PhotoImage(file="LogoUBB.png")
-        self.logoUBB = ttk.Label(image=self.logo)
-        self.logoUBB.place(x=1850, y=930)
 
         # Cuadros de Imagen grises
         self.LImagen = tk.Label(self.root, background="gray")
