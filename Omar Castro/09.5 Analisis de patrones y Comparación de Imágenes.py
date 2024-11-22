@@ -271,7 +271,7 @@ def comparar_imagenes():
     mejor_score = float('inf')    
     # Iterar sobre cada imagen en la carpeta
     for img_path in img_folder:
-        img_carpeta = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        img_carpeta = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)  # Carga sin alterar los datos originales
         # Obtener la coincidencia y el score con la imagen actual de la carpeta
         _, score = comparar_con_imagen(descriptors_cam, img_carpeta)        
         # Si el score es mejor (menor) que el anterior, actualizamos la mejor coincidencia
