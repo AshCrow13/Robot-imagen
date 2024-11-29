@@ -44,12 +44,6 @@ def mostrar_camara_umbralizada():
             threshold_frame_resized = cv2.resize(threshold_frame, (300, 240), interpolation=cv2.INTER_AREA)
             # Guardar la imagen umbralizada en Captura
             Captura_threshold = threshold_frame
-            # Recortar la imagen umbralizada utilizando los valores de los sliders
-            x = SX.get()
-            y = SY.get()
-            w = SW.get()
-            h = SH.get()
-            threshold_frame = threshold_frame[y:h, x:w]
             # Convertir a formato compatible con Tkinter
             im = Image.fromarray(threshold_frame_resized)
             img_umbralizada = ImageTk.PhotoImage(image=im)
@@ -254,35 +248,70 @@ def comparar_con_imagen(descriptors_cam, img_carpeta):
     return img_carpeta, score
 
 def comparar_imagenes():
-    global Captura_threshold, img_folder    
+    global Captura_threshold, img_folder
+    
     # Verificar si hay una captura y si hay imágenes en la carpeta
     if Captura_threshold is None or not img_folder:
         messagebox.showwarning("Advertencia", "Por favor, capture una imagen y cargue las imágenes de la carpeta.")
-        return    
-    # Crear el detector de características
-    orb = cv2.ORB_create()    
-    # Obtener descriptores de la imagen de la cámara
-    keypoints_cam, descriptors_cam = orb.detectAndCompute(Captura_threshold, None)
+        return
+    
+    # Crear el detector de características con más puntos clave
+    orb = cv2.ORB_create(nfeatures=1000)
+
+    # Validar y recortar la imagen de la cámara
+    h_max, w_max = Captura_threshold.shape
+    x = min(max(SX.get(), 0), w_max)
+    y = min(max(SY.get(), 0), h_max)
+    w = min(max(SW.get(), x), w_max)
+    h = min(max(SH.get(), y), h_max)
+
+    # Verificar que el recorte es válido
+    if x >= w or y >= h:
+        messagebox.showerror("Error", "El recorte no es válido. Ajuste los sliders.")
+        return
+    
+    Captura_recortada = Captura_threshold[y:h, x:w]
+    
+    # Mejorar detalles en la imagen recortada
+    Captura_recortada = cv2.GaussianBlur(Captura_recortada, (3, 3), 0)
+    Captura_recortada = cv2.Canny(Captura_recortada, 50, 150)
+
+    # Detectar características en la imagen recortada
+    keypoints_cam, descriptors_cam = orb.detectAndCompute(Captura_recortada, None)
     if descriptors_cam is None:
         messagebox.showerror("Error", "No se encontraron características en la imagen de la cámara.")
-        return    
+        return
+
     # Variables para la mejor coincidencia
     mejor_coincidencia = None
-    mejor_score = float('inf')    
+    mejor_score = float('inf')
+
     # Iterar sobre cada imagen en la carpeta
     for img_path in img_folder:
-        img_carpeta = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)  # Carga sin alterar los datos originales
-        # Obtener la coincidencia y el score con la imagen actual de la carpeta
-        _, score = comparar_con_imagen(descriptors_cam, img_carpeta)        
-        # Si el score es mejor (menor) que el anterior, actualizamos la mejor coincidencia
-        if score < mejor_score:
-            mejor_coincidencia = img_carpeta
-            mejor_score = score    
+        img_carpeta = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)  # Convertir a escala de grises
+        if img_carpeta is None:
+            continue  # Saltar si la imagen no se cargó correctamente
+        
+        # Detectar características en la imagen de la carpeta
+        keypoints_folder, descriptors_folder = orb.detectAndCompute(img_carpeta, None)
+        if descriptors_folder is None:
+            continue  # Saltar si no hay características detectadas
+        
+        # Comparar características
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        matches = bf.match(descriptors_cam, descriptors_folder)
+        if matches:
+            score = sum([m.distance for m in matches]) / len(matches)
+            if score < mejor_score:
+                mejor_coincidencia = img_carpeta
+                mejor_score = score
+
     # Mostrar el resultado
     if mejor_coincidencia is not None:
         mostrar_resultado(mejor_coincidencia, mejor_score)
     else:
         messagebox.showinfo("Información", "No se encontró una coincidencia válida.")
+
 
 def mostrar_resultado(mejor_coincidencia, mejor_score):
     # Función para actualizar la interfaz con la imagen encontrada
