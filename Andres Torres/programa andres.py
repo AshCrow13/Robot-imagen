@@ -52,8 +52,8 @@ class ProcesamientoImagenWebcam:
         self.BEnviar = tk.Button(self.root, text="Enviar", command=self.enviar_serial)
         self.BEnviar.place(x=60, y=730, width=120, height=23)
         # Botón para limpiar textos
-        self.BLimpiar = tk.Button(self.root, text="Limpiar textos", command=self.limpiar_textos_serial)
-        self.BLimpiar.place(x=250, y=730, width=120, height=23)
+        self.BFinalizar = tk.Button(self.root, text="Finalizar programas", command=self.finalizar_programas)
+        self.BFinalizar.place(x=250, y=730, width=120, height=23)
 
 
         # Combobox para selección de puerto
@@ -119,38 +119,60 @@ class ProcesamientoImagenWebcam:
         tk.Label(self.root, text="Paso 4. Analizar las manchas").place(x=1400, y=20)
 
         # Area de run pick and place
+        # Área para mostrar las respuestas del terminal
+        tk.Label(self.root, text="Respuestas recibidas:").place(x=730, y=780)
+        self.TextRecibidos = tk.Text(self.root, height=10, width=50)
+        self.TextRecibidos.place(x=730, y=800)
         # Añadir el marco "Pick and Place"
         self.pick_place_frame = tk.LabelFrame(self.root, text="RUN 'PICK AND PLACE'", padx=10, pady=10)
-        self.pick_place_frame.place(x=730, y=450, width=440, height=300)
+        self.pick_place_frame.place(x=730, y=450, width=490, height=300)
 
-        # Campos del marco "Pick and Place"
-        tk.Label(self.pick_place_frame, text="Part ID:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        # Añadir botones de "OK" y "Cancelar"
+        tk.Button(self.pick_place_frame, text="OK", command=self.pick_place_ok).grid(row=10, column=1, pady=10)
+        tk.Button(self.pick_place_frame, text="Cancel", command=self.pick_place_cancel).grid(row=10, column=2, pady=10)
+        # Marcos mejorados
+        tk.Label(self.pick_place_frame, text="Part ID:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
         self.part_id = ttk.Spinbox(self.pick_place_frame, from_=0, to=100)
-        self.part_id.grid(row=0, column=1)
+        self.part_id.grid(row=0, column=1, pady=5)
 
-        tk.Label(self.pick_place_frame, text="Source ID:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        self.source_id = ttk.Spinbox(self.pick_place_frame, from_=1, to=100)
-        self.source_id.grid(row=1, column=1)
+        tk.Label(self.pick_place_frame, text="Template:").grid(row=0, column=2, sticky=tk.W, padx=10)
+        self.template = ttk.Combobox(self.pick_place_frame, values=["TEMPLATE"])
+        self.template.set("TEMPLATE")
+        self.template.grid(row=0, column=3, pady=5)
 
-        tk.Label(self.pick_place_frame, text="Source Index:").grid(row=1, column=2, sticky=tk.W, pady=5)
-        self.source_index = ttk.Combobox(self.pick_place_frame, state="readonly", values=["1", "2", "3"])
-        self.source_index.grid(row=1, column=3)
+        tk.Label(self.pick_place_frame, text="Source ID:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        self.source_id = ttk.Spinbox(self.pick_place_frame, from_=1, to=10)
+        self.source_id.grid(row=1, column=1, pady=5)
 
-        tk.Label(self.pick_place_frame, text="Target ID:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        self.target_id = ttk.Spinbox(self.pick_place_frame, from_=1, to=100)
-        self.target_id.grid(row=2, column=1)
+        tk.Label(self.pick_place_frame, text="CNV1:").grid(row=1, column=2, sticky=tk.W, padx=10)
+        self.cnv1 = ttk.Combobox(self.pick_place_frame, values=["CNV1"])
+        self.cnv1.set("CNV1")
+        self.cnv1.grid(row=1, column=3, pady=5)
 
-        tk.Label(self.pick_place_frame, text="Target Index:").grid(row=2, column=2, sticky=tk.W, pady=5)
-        self.target_index = ttk.Combobox(self.pick_place_frame, state="readonly", values=["1", "2"])
-        self.target_index.grid(row=2, column=3)
+        tk.Label(self.pick_place_frame, text="Source Index:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
+        self.source_index = ttk.Spinbox(self.pick_place_frame, from_=1, to=3)
+        self.source_index.grid(row=2, column=1, pady=5)
 
-        tk.Label(self.pick_place_frame, text="Note:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        tk.Label(self.pick_place_frame, text="1 - 3").grid(row=2, column=2, padx=10)
+
+        tk.Label(self.pick_place_frame, text="Target ID:").grid(row=3, column=0, sticky=tk.W, padx=10, pady=5)
+        self.target_id = ttk.Spinbox(self.pick_place_frame, from_=1, to=20)
+        self.target_id.grid(row=3, column=1, pady=5)
+
+        tk.Label(self.pick_place_frame, text="BFFR1:").grid(row=3, column=2, sticky=tk.W, padx=10)
+        self.bffr1 = ttk.Combobox(self.pick_place_frame, values=["BFFR1"])
+        self.bffr1.set("BFFR1")
+        self.bffr1.grid(row=3, column=3, pady=5)
+
+        tk.Label(self.pick_place_frame, text="Target Index:").grid(row=4, column=0, sticky=tk.W, padx=10, pady=5)
+        self.target_index = ttk.Spinbox(self.pick_place_frame, from_=1, to=2)
+        self.target_index.grid(row=4, column=1, pady=5)
+
+        tk.Label(self.pick_place_frame, text="1 - 2").grid(row=4, column=2, padx=10)
+
+        tk.Label(self.pick_place_frame, text="Note:").grid(row=5, column=0, sticky=tk.W, padx=10, pady=5)
         self.note = ttk.Spinbox(self.pick_place_frame, from_=0, to=100)
-        self.note.grid(row=3, column=1)
-
-        # Botones para el marco
-        tk.Button(self.pick_place_frame, text="OK", command=self.pick_place_ok).grid(row=4, column=1, pady=10)
-        tk.Button(self.pick_place_frame, text="Cancel", command=self.pick_place_cancel).grid(row=4, column=2, pady=10)
+        self.note.grid(row=5, column=1, pady=5)
 
 
     def iniciar_camara(self):
@@ -351,63 +373,95 @@ class ProcesamientoImagenWebcam:
         """Limpia el cuadro de texto donde se muestran las respuestas."""
         self.TextRespuestas.delete("1.0", tk.END)
 
-    def limpiar_textos_serial(self):
-        self.TextComandos.delete("1.0", tk.END)
+    def finalizar_programas(self):
+        try:
+            # Limpia el cuadro de comandos
+            self.TextComandos.delete("1.0", tk.END)
+
+            # Enviar un carácter arbitrario (por ejemplo, 'x') para finalizar programas
+            self.serial_port.write("\r".encode())  # Puedes usar cualquier carácter no reconocido
+            self.serial_port.write("\r".encode())
+            self.serial_port.write("\r".encode())
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+
+            # Registrar la respuesta del robot
+            self.TextRecibidos.insert(tk.END, f"Comando enviado para finalizar: ' '\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+
+            # Mostrar mensaje de éxito
+            messagebox.showinfo("Finalizado con exito")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo finalizar los programas: {e}")
+
 
     def pick_place_ok(self):
         # Obtener valores del formulario
-        part_id = self.part_id.get()
-        source_id = self.source_id.get()
-        source_index = self.source_index.get()
-        target_id = self.target_id.get()
-        target_index = self.target_index.get()
-        note = self.note.get()
+        part_id = self.part_id.get()  # Primer valor de PAR
+        source_id = int(self.source_id.get())  # Segundo valor de PAR
+        source_index = self.source_index.get() # Tercer valor de PAR
+        target_id = int(self.target_id.get())  # Cuarto valor de PAR
+        target_index = self.target_index.get()  # Quinto valor de PAR
+        note = self.note.get()  # Sexto valor de PAR
 
-        # Verificar que todos los campos hayan sido llenados
-        if not all([part_id, source_id, source_index, target_id, target_index, note]):
-            messagebox.showerror("Error", "Por favor, complete todos los campos.")
+        # Generar la lista de valores PAR en orden
+        valores_par = [part_id, source_id, source_index, target_id, target_index, note]
+
+        # Verificar conexión serial
+        if not self.serial_connected:
+            messagebox.showerror("Error", "Conexión serial no establecida.")
             return
 
-        # Lista de comandos y respuestas esperadas
-        comandos_y_respuestas = [
-            ("RUN PCPLC", "ID?"),  # RUN PCPLC, espera "ID?"
-            (part_id, None),       # Enviar ID
-            (source_id, None),     # Enviar SOURCE_ID
-            (source_index, None),  # Enviar SOURCE_INDEX
-            ("RUN GT001", "Target ID?"),  # RUN GT001, espera "Target ID?"
-            (target_id, None),     # Enviar TARGET_ID
-            (target_index, None),  # Enviar TARGET_INDEX
-            ("RUN PT012", "Note?"),# RUN PT012, espera "Note?"
-            (note, None),          # Enviar note
-            ("%START 110000", None),  # Ejecutar START
-            ("%FINISH 110000", None), # Ejecutar FINISH
-            ("%END 110000", None),    # Finalizar
-        ]
+        try:
+            # Enviar comando inicial: run PCPLC
+            self.serial_port.write("run PCPLC\r".encode())
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando: run PCPLC\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
 
-        if self.serial_connected:
-            try:
-                for comando, respuesta_esperada in comandos_y_respuestas:
-                    # Enviar el comando al puerto serial
-                    self.serial_port.write((comando + "\r").encode())
-                    time.sleep(1)  # Esperar por la respuesta
+            # Verificar si el terminal pide el ID
+            if "ID?" in recibido:
+                self.serial_port.write("110000\r".encode())  # Enviar ID fijo
+                time.sleep(1)
+                recibido = self.serial_port.read_all().decode().strip()
+                self.TextRecibidos.insert(tk.END, f"ID enviado: 110000\nRespuesta: {recibido}\n")
+                self.TextRecibidos.see(tk.END)
+            else:
+                messagebox.showerror("Error", "El terminal no solicitó el ID.")
+                return
 
-                    # Leer la respuesta del terminal
-                    recibido = self.serial_port.read_all().decode()
+            # Enviar los valores PAR uno por uno
+            for valor_par in valores_par:
+                if "%PAR?" in recibido:
+                    self.serial_port.write((str(valor_par) + "\r").encode())  # Convertir a string y enviar
+                    time.sleep(1)
+                    recibido = self.serial_port.read_all().decode().strip()
+                    self.TextRecibidos.insert(tk.END, f"Valor PAR enviado: {valor_par}\nRespuesta: {recibido}\n")
+                    self.TextRecibidos.see(tk.END)
+                else:
+                    messagebox.showerror("Error", f"El terminal no solicitó el siguiente valor PAR. Respuesta: {recibido}")
+                    return
 
-                    # Mostrar en consola y en la interfaz para depuración
-                    print(f"Comando enviado: {comando}")
-                    print(f"Respuesta recibida: {recibido}")
-                    self.TextRecibidos.insert("1.0", recibido + "\n")
+            # Ejecutar comando GT según Source ID
+            gt_comando = f"run GT{source_id:03d}"  # Generar comando con formato GT001, GT002, etc.
+            self.serial_port.write((gt_comando + "\r").encode())
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando GT enviado: {gt_comando}\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
 
-                    # Verificar si la respuesta coincide con lo esperado
-                    if respuesta_esperada and respuesta_esperada not in recibido:
-                        messagebox.showerror("Error", f"Respuesta inesperada: {recibido}")
-                        return
-                messagebox.showinfo("Pick and Place", "Comandos enviados exitosamente.")
-            except Exception as e:
-                messagebox.showerror("Error", f"No se pudo completar el flujo: {e}")
-        else:
-            messagebox.showerror("Error", "Conexión serial no establecida.")
+            # Ejecutar comando PT según Target ID
+            pt_comando = f"run PT{target_id:03d}"  # Generar comando con formato PT001, PT002, etc.
+            self.serial_port.write((pt_comando + "\r").encode())
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando PT enviado: {pt_comando}\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+            # Finalizar con éxito
+            messagebox.showinfo("Éxito", "Proceso Pick and Place completado.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al enviar comandos: {e}")
 
     def pick_place_cancel(self):
         # Limpiar valores del formulario
