@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 import imutils
 import cv2
 
-class ProcesamientoImagenWebcam:
+class proyecto:
     def __init__(self, root):
         self.root = root
         self.root.state("zoomed")
@@ -33,7 +33,7 @@ class ProcesamientoImagenWebcam:
         self.create_widgets()
 
     def create_widgets(self):
-        # Botones
+        # Botones para procesamiento de imagen
         self.BCamara = tk.Button(self.root, text="Iniciar cámara", command=self.iniciar_camara)
         self.BCamara.place(x=60, y=330, width=90, height=23)
         self.BCapturar = tk.Button(self.root, text="Tomar foto", command=self.tomar_foto)
@@ -42,7 +42,6 @@ class ProcesamientoImagenWebcam:
         self.BBinary.place(x=830, y=310, width=90, height=23)
         self.Bmanchas_g = tk.Button(self.root, text="Análisis de Manchas", command=self.manchas_g)
         self.Bmanchas_g.place(x=1400, y=200, width=140, height=23)
-        self.root.bind("<Motion>", self.mostrar_coordenadas)
          # Botones de conexión serial
         self.BConectar = tk.Button(self.root, text="Conectar Serial", command=self.conectar_serial)
         self.BConectar.place(x=60, y=500, width=120, height=23)
@@ -51,14 +50,11 @@ class ProcesamientoImagenWebcam:
          # Botones para comandos seriales
         self.BEnviar = tk.Button(self.root, text="Enviar", command=self.enviar_serial)
         self.BEnviar.place(x=60, y=730, width=120, height=23)
-        # Botón para limpiar textos
         self.BFinalizar = tk.Button(self.root, text="Finalizar programas", command=self.finalizar_programas)
         self.BFinalizar.place(x=250, y=730, width=120, height=23)
-        # Botón para enviar al robot a roposo
         self.BReposo = tk.Button(self.root, text="Reposo", command= self.posicion_inicial)
         self.BReposo.place(x=400, y=730, width=120, height=23)
 
-        #eliminar buffer del puerto serial
         # Combobox para selección de puerto
         self.comboBox1 = ttk.Combobox(
             self.root,
@@ -110,9 +106,6 @@ class ProcesamientoImagenWebcam:
         # Cuadro de Texto de analisis de manchas
         self.CajaTexto = tk.Text(self.root, state="disabled")
         self.CajaTexto.place(x=1350, y=50, width=250, height=140)
-
-        self.coordenadas = tk.Label(self.root, text="x = 0, y = 0")
-        self.coordenadas.place(x=10, y=770, width=150, height=20)
 
         # Pasos
         tk.Label(self.root, text="Paso 1. Iniciar la cámara y tomar una foto").place(x=70, y=20)
@@ -196,7 +189,7 @@ class ProcesamientoImagenWebcam:
         self.LImagenRecorte.create_image(0, 0, anchor=tk.NW, image=imgG)
         self.LImagenRecorte.image = imgG
 
-        # También mostrar la imagen gris en el área de vista previa (opcional)
+        # También mostrar la imagen gris en el área de vista previa
         self.GImagenROI.configure(image=imgG)
         self.GImagenROI.image = imgG
 
@@ -262,8 +255,6 @@ class ProcesamientoImagenWebcam:
 
         print("Análisis de manchas completado.")
 
-
-
     def on_button_press(self, event):
         self.rect_start = (event.x, event.y)
         if self.rect_id:
@@ -300,14 +291,6 @@ class ProcesamientoImagenWebcam:
             self.LImagenROI.configure(image=ImRec)
             self.LImagenROI.image = ImRec
             print("Imagen recortada correctamente.")
-
-
-    def mostrar_coordenadas(self, event):
-        self.coordenadas['text'] = f'x = {event.x}    y = {event.y}'
-
-    def mostrar_coordenadas(self, event):
-        x, y = event.x, event.y
-        self.coordenadas.configure(text=f"x = {x}, y = {y}")
 
     # Funciones de conexión serial
     def conectar_serial(self):
@@ -355,10 +338,6 @@ class ProcesamientoImagenWebcam:
         else:
             messagebox.showerror("Error", "Conexión serial no establecida.")
 
-    def limpiar_textos_respuestas(self):
-        """Limpia el cuadro de texto donde se muestran las respuestas."""
-        self.TextRespuestas.delete("1.0", tk.END)
-
     def finalizar_programas(self):
         try:
             # Limpia el cuadro de comandos
@@ -379,7 +358,6 @@ class ProcesamientoImagenWebcam:
             messagebox.showinfo("Finalizado con exito", "Programas finalizados")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo finalizar los programas: {e}")
-
 
     def pick_place_ok(self):
         # Obtener valores del formulario
@@ -503,5 +481,5 @@ class ProcesamientoImagenWebcam:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = ProcesamientoImagenWebcam(root)
+    app = proyecto(root)
     root.mainloop()
