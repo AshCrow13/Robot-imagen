@@ -1,9 +1,13 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import messagebox, simpledialog, END
 from tkinter.filedialog import askopenfilename
+from turtle import width
 from PIL import Image, ImageTk
 import imutils
+import time
+import os
 import cv2
+import glob
 
 
 class analisisTemplate:
@@ -32,7 +36,7 @@ class analisisTemplate:
         self.BBinary = tk.Button(self.root, text="Umbralización", command=self.umbralizacion)
         self.BBinary.place(x=830, y=310, width=90, height=23)
         self.Bmanchas_g = tk.Button(self.root, text="Análisis de Manchas", command=self.manchas_g)
-        self.Bmanchas_g.place(x=1400, y=200, width=140, height=23)
+        self.Bmanchas_g.place(x=1400, y=410, width=140, height=23)
 
         # Botones para cargar imagen
         self.BSubirImagen = tk.Button(self.root, text="Subir Imagen", command=self.subir_imagen)
@@ -54,6 +58,8 @@ class analisisTemplate:
         self.LImagenRecorte.bind("<Button-1>", self.on_button_press)
         self.LImagenRecorte.bind("<B1-Motion>", self.on_mouse_drag)
         self.LImagenRecorte.bind("<ButtonRelease-1>", self.on_button_release)
+        self.ImagenSubida = tk.Label(self.root , background="gray")
+        self.ImagenSubida.place(x=50, y=400, width=300, height=240)
 
         # SpinBox para umbralización
         self.numeroUmbra = tk.Spinbox(self.root, from_=0, to=255)
@@ -61,7 +67,7 @@ class analisisTemplate:
 
         # Cuadro de Texto de análisis de manchas
         self.CajaTexto = tk.Text(self.root, state="disabled")
-        self.CajaTexto.place(x=1350, y=50, width=250, height=140)
+        self.CajaTexto.place(x=1350, y=50, width=250, height=300)
 
         # Indicador de estado
         self.label_estado = tk.Label(self.root, text="", fg="blue")
@@ -130,13 +136,33 @@ class analisisTemplate:
             messagebox.showerror("Error", "Primero debe realizar un recorte en la imagen.")
             return
 
-        valor = int(self.numeroUmbra.get())
-        _, self.thresh1 = cv2.threshold(self.ImgRec, valor, 255, cv2.THRESH_BINARY)
+        try:
+            # Solicitar nombre para la imagen umbralizada
+            nombre_imagen_umbralizada = simpledialog.askstring(
+                "Guardar Umbralización", "Ingrese el nombre para la imagen umbralizada (sin extensión):"
+            )
+            if not nombre_imagen_umbralizada or not nombre_imagen_umbralizada.isalnum():
+                raise ValueError("El nombre ingresado no es válido. Debe ser alfanumérico.")
 
-        Umbral = Image.fromarray(self.thresh1)
-        Umbral = ImageTk.PhotoImage(image=Umbral)
-        self.UImagen.configure(image=Umbral)
-        self.UImagen.image = Umbral
+            valor = int(self.numeroUmbra.get())
+            _, self.thresh1 = cv2.threshold(self.ImgRec, valor, 255, cv2.THRESH_BINARY)
+
+            # Guardar la imagen umbralizada
+            archivo_umbralizada = f"{nombre_imagen_umbralizada}.jpg"
+            cv2.imwrite(archivo_umbralizada, self.thresh1)
+
+            # Mostrar en la interfaz
+            Umbral = Image.fromarray(self.thresh1)
+            Umbral = ImageTk.PhotoImage(image=Umbral)
+            self.UImagen.configure(image=Umbral)
+            self.UImagen.image = Umbral
+
+            messagebox.showinfo("Imagen Guardada", f"Imagen umbralizada guardada como {archivo_umbralizada}")
+        except ValueError as ve:
+            messagebox.showerror("Error", str(ve))
+        except Exception as e:
+            messagebox.showerror("Error", f"Ha ocurrido un error: {e}")
+
 
     def manchas_g(self):
         if self.thresh1 is None:
@@ -147,6 +173,14 @@ class analisisTemplate:
         self.root.after(100)
 
         try:
+            # Solicitar nombre para la imagen de manchas analizadas
+            nombre_imagen_manchas = simpledialog.askstring(
+                "Guardar Análisis de Manchas", "Ingrese el nombre para la imagen analizada (sin extensión):"
+            )
+            if not nombre_imagen_manchas or not nombre_imagen_manchas.isalnum():
+                raise ValueError("El nombre ingresado no es válido. Debe ser alfanumérico.")
+            
+            # Análisis de manchas
             num_pixels_blancos = cv2.countNonZero(self.thresh1)
             total_pixels = self.thresh1.size
             porcentaje_blancos = (num_pixels_blancos / total_pixels) * 100
@@ -161,6 +195,60 @@ class analisisTemplate:
             contornos_negros, _ = cv2.findContours(imagen_invertida, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cantidad_manchas_negras = len(contornos_negros)
 
+            # Crear una copia de la imagen con los contornos dibujados
+            imagen_con_contornos = self.ImgRec.copy()
+            cv2.drawContours(imagen_con_contornos, contornos_blancos, -1, (255, 255, 255), 2)
+            cv2.drawContours(imagen_con_contornos, contornos_negros, -1, (0, 0, 0), 2)
+
+            # Generar nombres únicos para las imágenes
+            timestamp = int(time.time())
+            archivo_umbralizada = f"umbralizada_{timestamp}.jpg"
+            archivo_manchas = f"{nombre_imagen_manchas}_{timestamp}_manchas_analizadas.jpg"
+
+            # Guardar las imágenes con nombres únicos
+            cv2.imwrite(archivo_umbralizada, self.thresh1)
+            cv2.imwrite(archivo_manchas, imagen_con_contornos)
+
+            # Buscar la imagen más parecida usando histogramas
+            imagen_umbralizada = cv2.imread(archivo_umbralizada, cv2.IMREAD_GRAYSCALE)
+            max_similitud = 0
+            imagen_mas_parecida = None
+
+            # Iterar sobre imágenes en la carpeta actual
+            for filepath in glob.glob("*.jpg"):
+                if filepath == archivo_umbralizada:
+                    continue
+
+                # Leer la imagen a comparar
+                imagen_comparar = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+                if imagen_comparar is None:
+                    continue
+
+                # Calcular el histograma de ambas imágenes
+                hist_umbralizada = cv2.calcHist([imagen_umbralizada], [0], None, [256], [0, 256])
+                hist_comparar = cv2.calcHist([imagen_comparar], [0], None, [256], [0, 256])
+
+                # Normalizar los histogramas para que sean comparables
+                cv2.normalize(hist_umbralizada, hist_umbralizada)
+                cv2.normalize(hist_comparar, hist_comparar)
+
+                # Comparar los histogramas usando correlación
+                similitud = cv2.compareHist(hist_umbralizada, hist_comparar, cv2.HISTCMP_CORREL)
+
+                # Actualizar la imagen más parecida
+                if similitud > max_similitud:
+                    max_similitud = similitud
+                    imagen_mas_parecida = filepath
+
+            # Determinar el mensaje según las manchas analizadas
+            if porcentaje_negros > 80:
+                mensaje_objeto = "No se detectó un objeto en la imagen (más del 80% es negro)."
+            elif cantidad_manchas_blancas > cantidad_manchas_negras:
+                mensaje_objeto = "Objeto sin forma detectado."
+            else:
+                mensaje_objeto = "Objeto detectado con forma."
+
+            # Mostrar resultados
             Cadena = (
                 f"--- Análisis de manchas ---\n"
                 f"Manchas Blancas:\n"
@@ -168,17 +256,25 @@ class analisisTemplate:
                 f" - Porcentaje del área: {round(porcentaje_blancos, 2)}%\n\n"
                 f"Manchas Negras:\n"
                 f" - Cantidad: {cantidad_manchas_negras}\n"
-                f" - Porcentaje del área: {round(porcentaje_negros, 2)}%"
+                f" - Porcentaje del área: {round(porcentaje_negros, 2)}%\n\n"
+                f"Imágenes guardadas:\n"
+                f" - Umbralización: {archivo_umbralizada}\n"
+                f" - Análisis de manchas: {archivo_manchas}\n\n"
+                f"Imagen más parecida: {imagen_mas_parecida if imagen_mas_parecida else 'No se encontraron coincidencias.'}\n"
+                f" - Similitud: {max_similitud:.2f}\n"
+                f"Resultado: {mensaje_objeto}"
             )
 
             self.CajaTexto.configure(state='normal')
-            self.CajaTexto.delete(1.0, tk.END)
+            self.CajaTexto.delete(1.0, END)
             self.CajaTexto.insert(1.0, Cadena)
             self.CajaTexto.configure(state='disabled')
+
             self.mostrar_estado("Análisis de manchas completado.")
         except Exception as e:
             self.mostrar_estado("Error durante el análisis de manchas.")
             messagebox.showerror("Error", f"Error inesperado: {e}")
+
 
     def on_button_press(self, event):
         self.rect_start = (event.x, event.y)
@@ -214,39 +310,70 @@ class analisisTemplate:
             self.LImagenROI.image = ImRec
 
     def analizar_patrones(self):
-        if self.CapturaG is None or self.ImgRec is None:
-            messagebox.showerror("Error", "Primero debe cargar una imagen y realizar un recorte.")
-            return
 
         try:
-            # Usar coincidencia de plantillas para encontrar la región recortada
-            resultado = cv2.matchTemplate(self.CapturaG, self.ImgRec, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, max_loc = cv2.minMaxLoc(resultado)
+            mejor_similitud = 0
+            mejor_imagen = None
+            mejor_coordenadas = None
 
-            # Coordenadas del mejor ajuste
-            top_left = max_loc
-            h, w = self.ImgRec.shape
-            bottom_right = (top_left[0] + w, top_left[1] + h)
+            # Obtener la lista de todas las imágenes en el directorio actual
+            imagenes = glob.glob("*.jpg") + glob.glob("*.jpeg") + glob.glob("*.png")
 
-            # Dibujar el rectángulo encontrado en la imagen original
-            imagen_original_con_rect = self.CapturaG.copy()
-            cv2.rectangle(imagen_original_con_rect, top_left, bottom_right, 255, 2)
+            if not imagenes:
+                messagebox.showinfo("Sin Imágenes", "No se encontraron imágenes en la carpeta actual.")
+                return
 
-            # Mostrar la imagen con el rectángulo
-            im_rect = Image.fromarray(imagen_original_con_rect)
-            img_rect = ImageTk.PhotoImage(image=im_rect)
-            self.UImagen.configure(image=img_rect)
-            self.UImagen.image = img_rect
+            # Iterar sobre cada imagen y aplicar coincidencia de plantillas
+            for imagen_path in imagenes:
+                imagen_actual = cv2.imread(imagen_path, cv2.IMREAD_GRAYSCALE)
+                if imagen_actual is None:
+                    continue
 
-            # Calcular el porcentaje de precisión
-            precision = max_val * 100
-            messagebox.showinfo("Resultado del Análisis", f"Precisión: {precision:.2f}%")
+                # Asegurarse de que la imagen sea lo suficientemente grande
+                if imagen_actual.shape[0] < self.ImgRec.shape[0] or imagen_actual.shape[1] < self.ImgRec.shape[1]:
+                    continue
 
-            print(f"Patrón encontrado en la posición: {top_left}")
-            print(f"Precisión: {precision:.2f}%")
+                # Aplicar coincidencia de plantillas
+                resultado = cv2.matchTemplate(imagen_actual, self.ImgRec, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(resultado)
+
+                # Guardar los mejores resultados
+                if max_val > mejor_similitud:
+                    mejor_similitud = max_val
+                    mejor_imagen = imagen_path
+                    mejor_coordenadas = max_loc
+                    mejor_match = imagen_actual.copy()
+
+            # Verificar si se encontró alguna coincidencia válida
+            if mejor_imagen:
+                # Dibujar el rectángulo en la imagen con mejor coincidencia
+                top_left = mejor_coordenadas
+                h, w = self.ImgRec.shape
+                bottom_right = (top_left[0] + w, top_left[1] + h)
+
+                cv2.rectangle(mejor_match, top_left, bottom_right, 255, 2)
+
+                # Mostrar la imagen con el rectángulo
+                im_rect = Image.fromarray(mejor_match)
+                img_rect = ImageTk.PhotoImage(image=im_rect)
+                self.UImagen.configure(image=img_rect)
+                self.UImagen.image = img_rect
+
+                # Mostrar información del mejor resultado
+                precision = mejor_similitud * 100
+                messagebox.showinfo(
+                    "Resultado del Análisis",
+                    f"Mejor coincidencia encontrada en: {mejor_imagen}\nPrecisión: {precision:.2f}%"
+                )
+
+                print(f"Mejor coincidencia en: {mejor_imagen}")
+                print(f"Precisión: {precision:.2f}%")
+            else:
+                messagebox.showinfo("Sin Coincidencias", "No se encontraron coincidencias para la región recortada.")
 
         except Exception as e:
             messagebox.showerror("Error", f"Error durante el análisis de patrones: {e}")
+
 
 
     def subir_imagen(self):
@@ -254,15 +381,25 @@ class analisisTemplate:
         if not filepath:
             return
 
+        # Leer la imagen en escala de grises
         self.CapturaG = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
         if self.CapturaG is None:
             messagebox.showerror("Error", "No se pudo cargar la imagen seleccionada.")
             return
 
-        imG = Image.fromarray(self.CapturaG)
+        # Mostrar la imagen original en "Imagen Subida"
+        resized_image = cv2.resize(self.CapturaG, (300, 240))
+        imG = Image.fromarray(resized_image)
         imgG = ImageTk.PhotoImage(image=imG)
-        self.LImagen.configure(image=imgG)
-        self.LImagen.image = imgG
+        self.ImagenSubida.configure(image=imgG)
+        self.ImagenSubida.image = imgG
+
+        # Mostrar la imagen en el área de recorte para manipulación
+        imG_recorte = Image.fromarray(self.CapturaG)
+        imgG_recorte = ImageTk.PhotoImage(image=imG_recorte)
+        self.LImagenRecorte.create_image(0, 0, anchor=tk.NW, image=imgG_recorte)
+        self.LImagenRecorte.image = imgG_recorte
+
 
 
 if __name__ == "__main__":
