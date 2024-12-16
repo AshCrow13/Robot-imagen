@@ -257,46 +257,50 @@ def cargar_imagenes_carpeta():
         messagebox.showerror(message="Error al cargar las imágenes: " + str(e))
 
 def preprocesar_imagen(img, size=(300, 240)):
-    """
-    Preprocesa la imagen para comparación: escala de grises y redimensionamiento.
-    """
+    """ Preprocesa la imagen para comparación: escala de grises y redimensionamiento. """
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
     img_resized = cv2.resize(img_gray, size)
     return img_resized
 
 
-def comparar_con_imagen(descriptors_cam, img_carpeta):
+def comparar_con_imagen(descriptors_cam, keypoints_cam, img_carpeta):
     """
-    Compara los descriptores de la imagen de la cámara con los de una imagen de la carpeta.
-    Filtra coincidencias y devuelve el puntaje.
+    Compara los descriptores y keypoints de la imagen capturada con una imagen de la carpeta.
     """
-    orb = cv2.ORB_create(nfeatures=500)  # Ajusta el número de características a detectar
-    img_carpeta_proc = preprocesar_imagen(img_carpeta)  # Preprocesar imagen de la carpeta
-    keypoints_folder, descriptors_folder = orb.detectAndCompute(img_carpeta_proc, None)
+    sift = cv2.SIFT_create()  # Usar SIFT para una comparación más robusta
+    img_carpeta_proc = preprocesar_imagen(img_carpeta)
+    keypoints_folder, descriptors_folder = sift.detectAndCompute(img_carpeta_proc, None)
 
     if descriptors_folder is None:
-        return None, float('inf')  # Puntaje alto si no hay descriptores
+        return None, float('inf')  # Si no hay descriptores, retornar puntaje alto
 
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-    matches = bf.knnMatch(descriptors_cam, descriptors_folder, k=2)  # Ratio test
+    # Comparador de características
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(descriptors_cam, descriptors_folder, k=2)
 
-    # Filtrar coincidencias usando el test de ratio de Lowe
+    # Filtrar coincidencias usando RANSAC y test de ratio de Lowe
     good_matches = []
     for m, n in matches:
-        if m.distance < 0.75 * n.distance:  # Condición para coincidencias válidas
+        if m.distance < 0.75 * n.distance:  # Test de ratio
             good_matches.append(m)
 
-    if not good_matches:
-        return None, float('inf')  # Sin coincidencias válidas
+    if len(good_matches) > 4:  # Verificar suficientes coincidencias
+        src_pts = np.float32([keypoints_cam[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([keypoints_folder[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
-    # Calcular el score promedio de las coincidencias válidas
-    score = sum([m.distance for m in good_matches]) / len(good_matches)
-    return img_carpeta_proc, score
+        # Calcular la homografía y filtrar coincidencias usando RANSAC
+        _, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+        inliers = np.sum(mask)
+        score = 1 / (inliers + 1)  # El puntaje se basa en el número de inliers
+
+        return img_carpeta_proc, score
+    else:
+        return None, float('inf')  # Puntaje alto si no hay suficientes coincidencias
 
 
 def comparar_imagenes():
     """
-    Compara la imagen capturada con las imágenes de una carpeta y determina la más similar.
+    Compara la imagen capturada con las imágenes de la carpeta usando SIFT y RANSAC.
     """
     global Captura_threshold, img_folder
 
@@ -306,23 +310,23 @@ def comparar_imagenes():
 
     # Preprocesar la imagen capturada
     img_captura_proc = preprocesar_imagen(Captura_threshold)
-    orb = cv2.ORB_create(nfeatures=1000)
-    keypoints_cam, descriptors_cam = orb.detectAndCompute(img_captura_proc, None)
+    sift = cv2.SIFT_create()
+    keypoints_cam, descriptors_cam = sift.detectAndCompute(img_captura_proc, None)
 
     if descriptors_cam is None:
-        messagebox.showerror("Error", "No se encontraron características en la imagen de la cámara.")
+        messagebox.showerror("Error", "No se encontraron características en la imagen capturada.")
         return
 
-    # Comparar con imágenes de la carpeta
+    # Comparar con las imágenes de la carpeta
     mejor_coincidencia = None
     mejor_score = float('inf')
     mejor_nombre = None
 
     for img_path in img_folder:
         img_carpeta = cv2.imread(img_path)
-        img_proc, score = comparar_con_imagen(descriptors_cam, img_carpeta)
+        resultado, score = comparar_con_imagen(descriptors_cam, keypoints_cam, img_carpeta)
         if score < mejor_score:
-            mejor_coincidencia = img_proc
+            mejor_coincidencia = resultado
             mejor_score = score
             mejor_nombre = os.path.basename(img_path)
 
@@ -332,14 +336,15 @@ def comparar_imagenes():
     else:
         messagebox.showinfo("Información", "No se encontró una coincidencia válida.")
 
+
 def mostrar_resultado(mejor_coincidencia, mejor_score, mejor_nombre):
-    # Función para actualizar la interfaz con la imagen encontrada
-    matched_image = cv2.cvtColor(mejor_coincidencia, cv2.COLOR_GRAY2RGB)
-    im = Image.fromarray(matched_image)
+    """ Muestra el resultado de la comparación en la interfaz. """
+    im = Image.fromarray(mejor_coincidencia)
     img_to_show = ImageTk.PhotoImage(image=im)
     LImagenCarpeta.configure(image=img_to_show)
     LImagenCarpeta.image = img_to_show
-    # Mostrar el puntaje y el nombre en la interfaz
+
+    # Mostrar el nombre y puntaje
     CajaTexto2.configure(state='normal')
     CajaTexto2.delete(1.0, tk.END)
     CajaTexto2.insert(1.0, f"Imagen más similar: {mejor_nombre}\nScore: {mejor_score:.2f}")
