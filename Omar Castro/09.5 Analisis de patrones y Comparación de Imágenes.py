@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, simpledialog
 from PIL import Image, ImageTk
 import numpy as np
 import imutils
@@ -218,12 +218,29 @@ def rgb():
 #Funcion Guardar 
 def guardar_imagen():
     recortada = rgb()
-    now = datetime.now()
-    timestamp = datetime.timestamp(now)
-    date_time = datetime.fromtimestamp(timestamp)
-    tag = date_time.strftime("%d_%m_%Y_%H_%M_%S")
-    #Guardamos la imagen recortada
-    cv2.imwrite(personPath + '/Imagen_recortada_' + tag + '_.jpg',255 - recortada)
+    if recortada is None:
+        messagebox.showerror("Error", "No hay imagen para guardar.")
+        return
+
+    # Pedir al usuario el nombre del archivo
+    nombre_archivo = simpledialog.askstring("Guardar imagen", "Ingrese el nombre del archivo:")
+    if not nombre_archivo:
+        messagebox.showinfo("Cancelado", "No se guardó la imagen.")
+        return
+
+    # Agregar extensión al nombre si no se proporcionó
+    if not nombre_archivo.lower().endswith(".jpg"):
+        nombre_archivo += ".jpg"
+
+    # Crear la ruta completa del archivo
+    ruta_completa = os.path.join(personPath, nombre_archivo)
+
+    try:
+        # Guardar la imagen recortada
+        cv2.imwrite(ruta_completa, 255 - recortada)
+        messagebox.showinfo("Éxito", f"Imagen guardada como: {ruta_completa}")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo guardar la imagen: {str(e)}")
 
 # Función para cargar imágenes de la carpeta
 def cargar_imagenes_carpeta():
@@ -239,63 +256,100 @@ def cargar_imagenes_carpeta():
     except Exception as e:
         messagebox.showerror(message="Error al cargar las imágenes: " + str(e))
 
-def comparar_con_imagen(descriptors_cam, img_carpeta):
-    # Función para obtener coincidencia y score con una imagen específica
-    orb = cv2.ORB_create()
-    _, descriptors_folder = orb.detectAndCompute(img_carpeta, None)
+def preprocesar_imagen(img, size=(300, 240)):
+    """ Preprocesa la imagen para comparación: escala de grises y redimensionamiento. """
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+    img_resized = cv2.resize(img_gray, size)
+    return img_resized
+
+
+def comparar_con_imagen(descriptors_cam, keypoints_cam, img_carpeta):
+    """
+    Compara los descriptores y keypoints de la imagen capturada con una imagen de la carpeta.
+    """
+    sift = cv2.SIFT_create()  # Usar SIFT para una comparación más robusta
+    img_carpeta_proc = preprocesar_imagen(img_carpeta)
+    keypoints_folder, descriptors_folder = sift.detectAndCompute(img_carpeta_proc, None)
+
     if descriptors_folder is None:
-        return None, float('inf')  # Retornar un puntaje alto si no hay descriptores en la imagen de la carpeta
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(descriptors_cam, descriptors_folder)
-    if not matches:
-        return None, float('inf')  # Sin coincidencias válidas
-    # Calcular el score promedio
-    score = sum([m.distance for m in matches]) / len(matches)
-    return img_carpeta, score
+        return None, float('inf')  # Si no hay descriptores, retornar puntaje alto
+
+    # Comparador de características
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(descriptors_cam, descriptors_folder, k=2)
+
+    # Filtrar coincidencias usando RANSAC y test de ratio de Lowe
+    good_matches = []
+    for m, n in matches:
+        if m.distance < 0.75 * n.distance:  # Test de ratio
+            good_matches.append(m)
+
+    if len(good_matches) > 4:  # Verificar suficientes coincidencias
+        src_pts = np.float32([keypoints_cam[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([keypoints_folder[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+        # Calcular la homografía y filtrar coincidencias usando RANSAC
+        _, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+        inliers = np.sum(mask)
+        score = 1 / (inliers + 1)  # El puntaje se basa en el número de inliers
+
+        return img_carpeta_proc, score
+    else:
+        return None, float('inf')  # Puntaje alto si no hay suficientes coincidencias
+
 
 def comparar_imagenes():
-    global Captura_threshold, img_folder    
-    # Verificar si hay una captura y si hay imágenes en la carpeta
+    """
+    Compara la imagen capturada con las imágenes de la carpeta usando SIFT y RANSAC.
+    """
+    global Captura_threshold, img_folder
+
     if Captura_threshold is None or not img_folder:
         messagebox.showwarning("Advertencia", "Por favor, capture una imagen y cargue las imágenes de la carpeta.")
-        return    
-    # Crear el detector de características
-    orb = cv2.ORB_create()    
-    # Obtener descriptores de la imagen de la cámara
-    keypoints_cam, descriptors_cam = orb.detectAndCompute(Captura_threshold, None)
+        return
+
+    # Preprocesar la imagen capturada
+    img_captura_proc = preprocesar_imagen(Captura_threshold)
+    sift = cv2.SIFT_create()
+    keypoints_cam, descriptors_cam = sift.detectAndCompute(img_captura_proc, None)
+
     if descriptors_cam is None:
-        messagebox.showerror("Error", "No se encontraron características en la imagen de la cámara.")
-        return    
-    # Variables para la mejor coincidencia
+        messagebox.showerror("Error", "No se encontraron características en la imagen capturada.")
+        return
+
+    # Comparar con las imágenes de la carpeta
     mejor_coincidencia = None
-    mejor_score = float('inf')    
-    # Iterar sobre cada imagen en la carpeta
+    mejor_score = float('inf')
+    mejor_nombre = None
+
     for img_path in img_folder:
-        img_carpeta = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)  # Carga sin alterar los datos originales
-        # Obtener la coincidencia y el score con la imagen actual de la carpeta
-        _, score = comparar_con_imagen(descriptors_cam, img_carpeta)        
-        # Si el score es mejor (menor) que el anterior, actualizamos la mejor coincidencia
+        img_carpeta = cv2.imread(img_path)
+        resultado, score = comparar_con_imagen(descriptors_cam, keypoints_cam, img_carpeta)
         if score < mejor_score:
-            mejor_coincidencia = img_carpeta
-            mejor_score = score    
+            mejor_coincidencia = resultado
+            mejor_score = score
+            mejor_nombre = os.path.basename(img_path)
+
     # Mostrar el resultado
     if mejor_coincidencia is not None:
-        mostrar_resultado(mejor_coincidencia, mejor_score)
+        mostrar_resultado(mejor_coincidencia, mejor_score, mejor_nombre)
     else:
         messagebox.showinfo("Información", "No se encontró una coincidencia válida.")
 
-def mostrar_resultado(mejor_coincidencia, mejor_score):
-    # Función para actualizar la interfaz con la imagen encontrada
-    matched_image = cv2.cvtColor(mejor_coincidencia, cv2.COLOR_GRAY2RGB)
-    im = Image.fromarray(matched_image)
+
+def mostrar_resultado(mejor_coincidencia, mejor_score, mejor_nombre):
+    """ Muestra el resultado de la comparación en la interfaz. """
+    im = Image.fromarray(mejor_coincidencia)
     img_to_show = ImageTk.PhotoImage(image=im)
     LImagenCarpeta.configure(image=img_to_show)
     LImagenCarpeta.image = img_to_show
-    # Mostrar el puntaje en la interfaz
+
+    # Mostrar el nombre y puntaje
     CajaTexto2.configure(state='normal')
     CajaTexto2.delete(1.0, tk.END)
-    CajaTexto2.insert(1.0, f"Imagen más similar encontrada con un score de {mejor_score:.2f}")
+    CajaTexto2.insert(1.0, f"Imagen más similar: {mejor_nombre}\nScore: {mejor_score:.2f}")
     CajaTexto2.configure(state='disabled')
+
 
 #Sliders para recorte de imagen
 SX = tk.Scale(ventana, from_=0, to=300, orient='horizontal', command=actualizar_area_recorte)
@@ -323,6 +377,9 @@ BCargarImagenes = tk.Button(ventana, text="Cargar Imágenes", command=cargar_ima
 BCargarImagenes.place(x=1160, y=310, width=120, height=23)
 BComparar = tk.Button(ventana, text="Comparar", command=comparar_imagenes)
 BComparar.place(x=1340, y=310, width=100, height=23)
+#BCompararCaptura = tk.Button(ventana, text="Comparar Captura", command=comparar_captura_con_carpeta)
+#BCompararCaptura.place(x=580,y=380,width=131,height=23)
+
 
 # Label
 LUmbral = tk.Label(ventana, text="Umbralizacion")

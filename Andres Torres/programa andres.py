@@ -1,13 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.filedialog import asksaveasfilename
+from numpy import rec
 import serial
 import time
 from PIL import Image, ImageTk
 import imutils
 import cv2
 
-class ProcesamientoImagenWebcam:
+class proyecto:
     def __init__(self, root):
         self.root = root
         self.root.state("zoomed")
@@ -15,7 +16,7 @@ class ProcesamientoImagenWebcam:
         self.root.title("Proyecto procesamiento de imagen con Webcam y conexion serial")
         # Configuración de comunicación serial
         self.serial_port = serial.Serial()
-
+        # Variables globales para imagen webcam
         self.serial_connected = False
         self.capture = None
         self.Captura = None
@@ -25,7 +26,6 @@ class ProcesamientoImagenWebcam:
         self.thresh1 = None
         self.mask = None
         self.ImgRec = None
-
         self.rect_start = None
         self.rect_end = None
         self.rect_id = None
@@ -33,24 +33,27 @@ class ProcesamientoImagenWebcam:
         self.create_widgets()
 
     def create_widgets(self):
-        # Botones
+        # Botones para procesamiento de imagen
         self.BCamara = tk.Button(self.root, text="Iniciar cámara", command=self.iniciar_camara)
         self.BCamara.place(x=60, y=330, width=90, height=23)
         self.BCapturar = tk.Button(self.root, text="Tomar foto", command=self.tomar_foto)
         self.BCapturar.place(x=250, y=330, width=91, height=23)
         self.BBinary = tk.Button(self.root, text="Umbralización", command=self.umbralizacion)
         self.BBinary.place(x=830, y=310, width=90, height=23)
-        self.BManchasG = tk.Button(self.root, text="Análisis de Manchas", command=self.manchasG)
-        self.BManchasG.place(x=1400, y=200, width=140, height=23)
-        self.root.bind("<Motion>", self.mostrar_coordenadas)
+        self.Bmanchas_g = tk.Button(self.root, text="Análisis de Manchas", command=self.manchas_g)
+        self.Bmanchas_g.place(x=1400, y=200, width=140, height=23)
          # Botones de conexión serial
         self.BConectar = tk.Button(self.root, text="Conectar Serial", command=self.conectar_serial)
-        self.BConectar.place(x=60, y=370, width=120, height=23)
+        self.BConectar.place(x=60, y=500, width=120, height=23)
         self.BDesconectar = tk.Button(self.root, text="Desconectar Serial", command=self.desconectar_serial)
-        self.BDesconectar.place(x=250, y=370, width=120, height=23)
+        self.BDesconectar.place(x=250, y=500, width=120, height=23)
          # Botones para comandos seriales
         self.BEnviar = tk.Button(self.root, text="Enviar", command=self.enviar_serial)
-        self.BEnviar.place(x=60, y=580, width=120, height=23)
+        self.BEnviar.place(x=60, y=730, width=120, height=23)
+        self.BFinalizar = tk.Button(self.root, text="Finalizar programas", command=self.finalizar_programas)
+        self.BFinalizar.place(x=250, y=730, width=120, height=23)
+        self.BReposo = tk.Button(self.root, text="Reposo", command= self.posicion_inicial)
+        self.BReposo.place(x=400, y=730, width=120, height=23)
 
         # Combobox para selección de puerto
         self.comboBox1 = ttk.Combobox(
@@ -59,26 +62,32 @@ class ProcesamientoImagenWebcam:
             values=["COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM10"]
         )
         self.comboBox1.set("COM1")
-        self.comboBox1.place(x=60, y=400, width=140, height=22)
+        self.comboBox1.place(x=60, y=530, width=140, height=22)
 
-        # Campos de texto para envío y recepción serial
-        self.TextEnviar = tk.Text(self.root, height=5, width=30)
-        self.TextEnviar.place(x=60, y=440)
-        self.TextRecibidos = tk.Text(self.root, height=5, width=30)
-        self.TextRecibidos.place(x=250, y=440)
-
+         # Cuadro de texto para ingresar comandos
+        tk.Label(self.root, text="Comando a enviar:").place(x=60, y=560)
+        self.TextComandos = tk.Text(self.root, height=5, width=50)
+        self.TextComandos.place(x=60, y=590)
+         # Cuadro de texto para mostrar respuestas
+        tk.Label(self.root, text="Respuestas recibidas:").place(x=60, y=770)
+        self.TextRespuestas = tk.Text(self.root, height=10, width=50, state='normal')
+        self.TextRespuestas.place(x=60, y=800)
         # SpinBox
         self.numeroUmbra = tk.Spinbox(self.root, from_=0, to=255)
         self.numeroUmbra.place(x=930, y=310, width=42, height=22)
 
         #Datos de alumno, profesor y laboratorio
         self.alumno = tk.Label(self.root, text="Alumno: Andrés Torres")
-        self.alumno.place(x=1700, y=930)
+        self.alumno.place(x=1450, y=930)
         self.profesor = tk.Label(self.root, text="Profesor: Luis Vera")
-        self.profesor.place(x=1700, y=950)
+        self.profesor.place(x=1450, y=950)
         self.lab = tk.Label(self.root, text="Laboratorio CIM")
-        self.lab.place(x=1700, y=970)
+        self.lab.place(x=1450, y=970)
 
+        # Logo Universidad
+        self.logo = tk.PhotoImage(file="LogoUBB.png")
+        self.logoUBB = ttk.Label(image=self.logo)
+        self.logoUBB.place(x=1400, y=930)
 
         # Cuadros de Imagen grises
         self.LImagen = tk.Label(self.root, background="gray")
@@ -98,15 +107,52 @@ class ProcesamientoImagenWebcam:
         self.CajaTexto = tk.Text(self.root, state="disabled")
         self.CajaTexto.place(x=1350, y=50, width=250, height=140)
 
-        self.coordenadas = tk.Label(self.root, text="x = 0, y = 0")
-        self.coordenadas.place(x=10, y=770, width=150, height=20)
-
         # Pasos
         tk.Label(self.root, text="Paso 1. Iniciar la cámara y tomar una foto").place(x=70, y=20)
         tk.Label(self.root, text="Paso 2. Pasar el cursor para recortar la imagen").place(x=400, y=20)
         tk.Label(self.root, text="Paso 3. Umbralizar, eligue un valor").place(x=730, y=20)
         tk.Label(self.root, text="Imagen umbralizada").place(x=1050, y=20)
         tk.Label(self.root, text="Paso 4. Analizar las manchas").place(x=1400, y=20)
+
+        # Area de run pick and place
+        # Área para mostrar las respuestas del terminal
+        tk.Label(self.root, text="Respuestas recibidas:").place(x=730, y=780)
+        self.TextRecibidos = tk.Text(self.root, height=10, width=50)
+        self.TextRecibidos.place(x=730, y=800)
+        # Añadir el marco "Pick and Place"
+        self.pick_place_frame = tk.LabelFrame(self.root, text="      RUN PCPLC, INGRESE LOS VALORES:", padx=10, pady=10)
+        self.pick_place_frame.place(x=730, y=450, width=490, height=300)
+
+        # Añadir botones de "OK" y "Cancelar"
+        tk.Button(self.pick_place_frame, text="OK", command=self.pick_place_ok).grid(row=10, column=1, pady=10)
+        tk.Button(self.pick_place_frame, text="Cancel", command=self.pick_place_cancel).grid(row=10, column=2, pady=10)
+        # Marcos mejorados
+
+        tk.Label(self.pick_place_frame, text="Part ID:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        self.part_id = ttk.Spinbox(self.pick_place_frame, from_=0, to=100)
+        self.part_id.grid(row=1, column=1, pady=5)
+
+        tk.Label(self.pick_place_frame, text="Source ID:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
+        self.source_id = ttk.Spinbox(self.pick_place_frame, from_=1, to=10)
+        self.source_id.grid(row=2, column=1, pady=5)
+
+
+        tk.Label(self.pick_place_frame, text="Source Index:").grid(row=3, column=0, sticky=tk.W, padx=10, pady=5)
+        self.source_index = ttk.Spinbox(self.pick_place_frame, from_=1, to=3)
+        self.source_index.grid(row=3, column=1, pady=5)
+
+        tk.Label(self.pick_place_frame, text="Target ID:").grid(row=4, column=0, sticky=tk.W, padx=10, pady=5)
+        self.target_id = ttk.Spinbox(self.pick_place_frame, from_=1, to=20)
+        self.target_id.grid(row=4, column=1, pady=5)
+
+        tk.Label(self.pick_place_frame, text="Target Index:").grid(row=5, column=0, sticky=tk.W, padx=10, pady=5)
+        self.target_index = ttk.Spinbox(self.pick_place_frame, from_=1, to=2)
+        self.target_index.grid(row=5, column=1, pady=5)
+
+        tk.Label(self.pick_place_frame, text="Note:").grid(row=6, column=0, sticky=tk.W, padx=10, pady=5)
+        self.note = ttk.Spinbox(self.pick_place_frame, from_=0, to=100)
+        self.note.grid(row=6, column=1, pady=5)
+
 
     def iniciar_camara(self):
         self.capture = cv2.VideoCapture(0)
@@ -143,34 +189,11 @@ class ProcesamientoImagenWebcam:
         self.LImagenRecorte.create_image(0, 0, anchor=tk.NW, image=imgG)
         self.LImagenRecorte.image = imgG
 
-        # También mostrar la imagen gris en el área de vista previa (opcional)
+        # También mostrar la imagen gris en el área de vista previa
         self.GImagenROI.configure(image=imgG)
         self.GImagenROI.image = imgG
 
         print("Foto tomada y cargada en escala de grises.")
-
-
-    def rgb(self):
-        Minimos = (int(self.SRedI.get()), int(self.SGreenI.get()), int(self.SBlueI.get()))
-        maximos = (int(self.SRedD.get()), int(self.SGreenD.get()), int(self.SBlueD.get()))
-        self.img_mask = cv2.inRange(self.ImgRec, Minimos, maximos)
-        self.img_aux = self.img_mask
-        img_mask = Image.fromarray(self.img_mask)
-        img_mask = ImageTk.PhotoImage(image=img_mask)
-        self.LImagenManchas.configure(image=img_mask)
-        self.LImagenManchas.image = img_mask
-        _, self.bin_imagen = cv2.threshold(self.img_aux, 0, 255, cv2.THRESH_BINARY_INV)
-
-    def manchas(self):
-        num_pixels_con_manchas = cv2.countNonZero(self.bin_imagen)
-        porcentaje_manchas = 100 - (num_pixels_con_manchas / self.bin_imagen.size) * 100
-        contornos = cv2.findContours(self.img_aux, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[0]
-        num_formas = len(contornos)
-        Cadena = f"Cantidad de manchas blancas: {num_formas}\nPorcentaje área con manchas: {round(porcentaje_manchas, 2)}%"
-        self.CajaTexto2.configure(state='normal')
-        self.CajaTexto2.delete(1.0, tk.END)
-        self.CajaTexto2.insert(1.0, Cadena)
-        self.CajaTexto2.configure(state='disabled')
 
     def umbralizacion(self):
         if self.ImgRec is None:
@@ -191,7 +214,7 @@ class ProcesamientoImagenWebcam:
         self.thresh1 = thresh1
 
 
-    def manchasG(self):
+    def manchas_g(self):
         if self.thresh1 is None:
             messagebox.showerror("Error", "Primero debe aplicar la umbralización a la imagen recortada.")
             return
@@ -232,8 +255,6 @@ class ProcesamientoImagenWebcam:
 
         print("Análisis de manchas completado.")
 
-
-
     def on_button_press(self, event):
         self.rect_start = (event.x, event.y)
         if self.rect_id:
@@ -271,13 +292,6 @@ class ProcesamientoImagenWebcam:
             self.LImagenROI.image = ImRec
             print("Imagen recortada correctamente.")
 
-
-    def mostrar_coordenadas(self, event):
-        self.coordenadas['text'] = f'x = {event.x}    y = {event.y}'
-
-    def mostrar_coordenadas(self, event):
-        x, y = event.x, event.y
-        self.coordenadas.configure(text=f"x = {x}, y = {y}")
     # Funciones de conexión serial
     def conectar_serial(self):
         if not self.serial_port.isOpen():
@@ -301,18 +315,171 @@ class ProcesamientoImagenWebcam:
 
     def enviar_serial(self):
         if self.serial_connected:
-            mensaje = self.TextEnviar.get("1.0", tk.END).strip()
+            mensaje = self.TextComandos.get("1.0", tk.END).strip()
             if mensaje:
-                self.serial_port.write(mensaje.encode() + b"\r")
-                time.sleep(2)
-                recibido = self.serial_port.read_all().decode()
-                self.TextRecibidos.insert("1.0", recibido)
-                messagebox.showinfo("Éxito", "Mensaje enviado.")
+                try:
+                    # Enviar el mensaje por el puerto serial
+                    self.serial_port.write(mensaje.encode() + b"\r")
+                    time.sleep(0.5)
+
+                    # Leer la respuesta del puerto serial
+                    recibido = self.serial_port.read_all().decode()
+
+                    # Agregar la respuesta al cuadro de respuestas
+                    self.TextRespuestas.insert(tk.END, f"> {mensaje}\n{recibido}\n")
+
+                    # Limpiar el cuadro de comandos
+                    self.TextComandos.delete("1.0", tk.END)
+                except Exception as e:
+                    # Mostrar errores en un cuadro de mensaje emergente
+                    messagebox.showerror("Error", f"No se pudo enviar el mensaje: {e}")
+            else:
+                messagebox.showerror("Error", "Debe ingresar un comando para enviar.")
         else:
             messagebox.showerror("Error", "Conexión serial no establecida.")
 
+    def finalizar_programas(self):
+        try:
+            # Limpia el cuadro de comandos
+            self.TextComandos.delete("1.0", tk.END)
+
+            # Enviar un carácter arbitrario (por ejemplo, 'x') para finalizar programas
+            self.serial_port.write("\r".encode())  # Puedes usar cualquier carácter no reconocido
+            self.serial_port.write("\r".encode())
+            self.serial_port.write("\r".encode())
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+
+            # Registrar la respuesta del robot
+            self.TextRecibidos.insert(tk.END, f"Comando enviado para finalizar: ' '\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+
+            # Mostrar mensaje de éxito
+            messagebox.showinfo("Finalizado con exito", "Programas finalizados")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo finalizar los programas: {e}")
+
+    def pick_place_ok(self):
+        # Obtener valores del formulario
+        part_id = self.part_id.get()
+        source_id = int(self.source_id.get())
+        source_index = self.source_index.get()
+        target_id = int(self.target_id.get())
+        target_index = self.target_index.get()
+        note = self.note.get()
+
+        # Lista de valores PAR
+        valores_par = [part_id, source_id, source_index, target_id, target_index, note]
+
+        if not self.serial_connected:
+            messagebox.showerror("Error", "Conexión serial no establecida.")
+            return
+    
+        try:
+            # Enviar comando inicial: run initc
+            self.serial_port.reset_input_buffer()
+            self.serial_port.reset_output_buffer()
+            self.serial_port.write("run initc\r".encode())
+            self.serial_port.flush()
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando: run initc\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+
+            if "Controller  O.K." not in recibido:  # Ajusta según la respuesta esperada tras "run initc"
+                messagebox.showerror("Error", "El comando 'run initc' no se ejecutó correctamente.")
+                return
+
+            # Enviar comando inicial: run PCPLC
+            self.serial_port.reset_input_buffer()
+            self.serial_port.reset_output_buffer()
+            self.serial_port.write("run PCPLC\r".encode())
+            self.serial_port.flush()
+            time.sleep(1)
+
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando: run PCPLC\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+
+            # Verificar si el terminal pide el ID
+            if "ID?" in recibido:
+                self.serial_port.reset_input_buffer()
+                self.serial_port.reset_output_buffer()
+                self.serial_port.write("110000\r".encode())
+                self.serial_port.flush()
+                time.sleep(1)
+                recibido = self.serial_port.read_all().decode().strip()
+                self.TextRecibidos.insert(tk.END, f"ID enviado: 110000\nRespuesta: {recibido}\n")
+                self.TextRecibidos.see(tk.END)
+            else:
+                messagebox.showerror("Error", "El terminal no solicitó el ID.")
+                return
+
+            # Enviar los valores PAR uno por uno
+            for valor_par in valores_par:
+                if "%PAR?" in recibido:
+                    self.serial_port.reset_input_buffer()
+                    self.serial_port.reset_output_buffer()
+                    self.serial_port.write((str(valor_par) + "\r").encode())
+                    self.serial_port.flush()
+                    time.sleep(0.5)
+                    recibido = self.serial_port.read_all().decode().strip()
+                    self.TextRecibidos.insert(tk.END, f"Valor PAR enviado: {valor_par}\nRespuesta: {recibido}\n")
+                    self.TextRecibidos.see(tk.END)
+                else:
+                    messagebox.showerror("Error", f"El terminal no solicitó el siguiente valor PAR.\nRespuesta: {recibido}")
+                    return
+
+            # Ejecutar comando GT
+            gt_comando = f"run GT{source_id:03d}"
+            self.serial_port.reset_input_buffer()
+            self.serial_port.reset_output_buffer()
+            self.serial_port.write((gt_comando + "\r").encode())
+            self.serial_port.flush()
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando GT enviado: {gt_comando}\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+
+            # Ejecutar comando PT
+            pt_comando = f"run PT{target_id:03d}"
+            self.serial_port.reset_input_buffer()
+            self.serial_port.reset_output_buffer()
+            self.serial_port.write((pt_comando + "\r").encode())
+            self.serial_port.flush()
+            time.sleep(1)
+            recibido = self.serial_port.read_all().decode().strip()
+            self.TextRecibidos.insert(tk.END, f"Comando PT enviado: {pt_comando}\nRespuesta: {recibido}\n")
+            self.TextRecibidos.see(tk.END)
+
+            # Finalizar programas
+            self.finalizar_programas()
+
+            # Mensaje de éxito
+            messagebox.showinfo("Éxito", "Proceso Pick and Place completado.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al enviar comandos: {e}")
+
+
+    def pick_place_cancel(self):
+        # Limpiar valores del formulario
+        self.part_id.delete(0, tk.END)
+        self.source_id.delete(0, tk.END)
+        self.source_index.set("")
+        self.target_id.delete(0, tk.END)
+        self.target_index.set("")
+        self.note.delete(0, tk.END)
+        messagebox.showinfo("Pick and Place", "Formulario restablecido.")
+
+    def posicion_inicial(self):
+        #Envia el robot al estado de reposo
+        self.serial_port.write("move 0\r".encode())
+        time.sleep(0.5)
+        self.serial_port.write("close\r".encode())
+        messagebox.showinfo("Reposo", "Robot en posicion inicial")
+        
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = ProcesamientoImagenWebcam(root)
+    app = proyecto(root)
     root.mainloop()
